@@ -5,6 +5,7 @@ import { useInterrupt } from '@/components/canvas/live2d';
 import { useChatHistory } from '@/context/chat-history-context';
 import { useVAD } from '@/context/vad-context';
 import { useMediaCapture } from '@/hooks/utils/use-media-capture';
+import { AiStateEnum } from '@/context/ai-state-context';
 
 export function useTextInput() {
   const [inputText, setInputText] = useState('');
@@ -22,7 +23,7 @@ export function useTextInput() {
 
   const handleSend = async () => {
     if (!inputText.trim() || !wsContext) return;
-    if (aiState === 'thinking-speaking') {
+    if (aiState === AiStateEnum.THINKING_SPEAKING) {
       interrupt();
     }
 
@@ -35,7 +36,7 @@ export function useTextInput() {
       images,
     });
 
-    setAiState('thinking-speaking');
+    setAiState(AiStateEnum.THINKING_SPEAKING);
     if (autoStopMic) stopMic();
     setInputText('');
   };

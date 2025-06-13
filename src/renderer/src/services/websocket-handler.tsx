@@ -15,7 +15,7 @@ import { useConfig } from '@/context/character-config-context';
 import { useChatHistory } from '@/context/chat-history-context';
 import { toaster } from '@/components/ui/toaster';
 import { useVAD } from '@/context/vad-context';
-import { AiState, useAiState } from "@/context/ai-state-context";
+import { AiState, useAiState, AiStateEnum } from "@/context/ai-state-context";
 import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { useGroup } from '@/context/group-context';
 import { useInterrupt } from '@/hooks/utils/use-interrupt';
@@ -63,19 +63,19 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         stopMic();
         break;
       case 'conversation-chain-start':
-        setAiState('thinking-speaking');
+        setAiState(AiStateEnum.THINKING_SPEAKING);
         audioTaskQueue.clearQueue();
         clearResponse();
         break;
       case 'conversation-chain-end':
         audioTaskQueue.addTask(() => new Promise<void>((resolve) => {
           setAiState((currentState: AiState) => {
-            if (currentState === 'thinking-speaking') {
+            if (currentState === AiStateEnum.THINKING_SPEAKING) {
               // Auto start mic if enabled
               if (autoStartMicOnConvEndRef.current) {
                 startMic();
               }
-              return 'idle';
+              return AiStateEnum.IDLE;
             }
             return currentState;
           });
@@ -96,7 +96,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         }
         break;
       case 'set-model-and-conf':
-        setAiState('loading');
+        setAiState(AiStateEnum.LOADING);
         if (message.conf_name) {
           setConfName(message.conf_name);
         }
@@ -116,7 +116,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           message.model_info.url = modelUrl;
         }
 
-        setAiState('idle');
+        setAiState(AiStateEnum.IDLE);
         break;
       case 'full-text':
         if (message.text) {
@@ -129,7 +129,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         }
         break;
       case 'config-switched':
-        setAiState('idle');
+        setAiState(AiStateEnum.IDLE);
         setSubtitleText('New Character Loaded');
 
         toaster.create({
@@ -149,7 +149,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         }
         break;
       case 'audio':
-        if (aiState === 'interrupted' || aiState === 'listening') {
+        if (aiState === AiStateEnum.INTERRUPTED || aiState === AiStateEnum.LISTENING) {
           console.log('Audio playback intercepted. Sentence:', message.display_text?.text);
         } else {
           console.log("actions", message.actions);
@@ -174,7 +174,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         });
         break;
       case 'new-history-created':
-        setAiState('idle');
+        setAiState(AiStateEnum.IDLE);
         setSubtitleText('新对话');
         // No need to open mic here
         if (message.history_uid) {
@@ -245,8 +245,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'conversation-chain-end':
         if (!audioTaskQueue.hasTask()) {
           setAiState((currentState: AiState) => {
-            if (currentState === 'thinking-speaking') {
-              return 'idle';
+            if (currentState === AiStateEnum.THINKING_SPEAKING) {
+              return AiStateEnum.IDLE;
             }
             return currentState;
           });

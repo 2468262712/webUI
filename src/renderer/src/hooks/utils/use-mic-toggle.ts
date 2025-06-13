@@ -1,5 +1,5 @@
 import { useVAD } from '@/context/vad-context';
-import { useAiState } from '@/context/ai-state-context';
+import { useAiState, AiStateEnum } from '@/context/ai-state-context';
 
 export function useMicToggle() {
   const { startMic, stopMic, micOn } = useVAD();
@@ -8,8 +8,8 @@ export function useMicToggle() {
   const handleMicToggle = async (): Promise<void> => {
     if (micOn) {
       stopMic();
-      if (aiState === 'listening') {
-        setAiState('idle');
+      if (aiState === AiStateEnum.LISTENING) {
+        setAiState(AiStateEnum.IDLE);
       }
     } else {
       await startMic();

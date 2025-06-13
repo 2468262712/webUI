@@ -7,7 +7,7 @@ import { useInterrupt } from '@/components/canvas/live2d';
 import { audioTaskQueue } from '@/utils/task-queue';
 import { useSendAudio } from '@/hooks/utils/use-send-audio';
 import { SubtitleContext } from './subtitle-context';
-import { AiStateContext } from './ai-state-context';
+import { AiStateContext, AiStateEnum } from './ai-state-context';
 import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { toaster } from '@/components/ui/toaster';
 
@@ -193,11 +193,11 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
    */
   const handleSpeechStart = useCallback(() => {
     console.log('Speech started');
-    if (aiStateRef.current === 'thinking-speaking') {
+    if (aiStateRef.current === AiStateEnum.THINKING_SPEAKING) {
       interruptRef.current();
     }
     isProcessingRef.current = true;
-    setAiStateRef.current('listening');
+    setAiStateRef.current(AiStateEnum.LISTENING);
   }, []);
 
   /**
@@ -237,8 +237,8 @@ export function VADProvider({ children }: { children: React.ReactNode }) {
     setPreviousTriggeredProbability(0);
     isProcessingRef.current = false;
 
-    if (aiStateRef.current === 'interrupted' || aiStateRef.current === 'listening') {
-      setAiStateRef.current('idle');
+    if (aiStateRef.current === AiStateEnum.INTERRUPTED || aiStateRef.current === AiStateEnum.LISTENING) {
+      setAiStateRef.current(AiStateEnum.IDLE);
     }
     setSubtitleTextRef.current("听不到你说话");
   }, []);

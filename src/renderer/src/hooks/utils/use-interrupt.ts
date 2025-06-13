@@ -4,6 +4,7 @@ import { useChatHistory } from '@/context/chat-history-context';
 import { audioTaskQueue } from '@/utils/task-queue';
 import { useLive2DModel } from '@/context/live2d-model-context';
 import { useSubtitle } from '@/context/subtitle-context';
+import { AiStateEnum } from '@/context/ai-state-context';
 
 export const useInterrupt = () => {
   const { aiState, setAiState } = useAiState();
@@ -13,7 +14,7 @@ export const useInterrupt = () => {
   const { subtitleText, setSubtitleText } = useSubtitle();
 
   const interrupt = (sendSignal = true) => {
-    if (aiState !== 'thinking-speaking') return;
+    if (aiState !== AiStateEnum.THINKING_SPEAKING) return;
     console.log('Interrupting conversation chain');
     if (sendSignal) {
       sendMessage({
