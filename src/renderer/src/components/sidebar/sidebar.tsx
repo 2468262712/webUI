@@ -76,7 +76,7 @@ const SidebarContent = memo(({ onSettingsOpen, onNewHistory }: HeaderButtonsProp
       />
     </Box>
     <ChatHistoryPanel />
-    <BottomTab />
+    {/* <BottomTab /> */}
   </Box>
 ));
 

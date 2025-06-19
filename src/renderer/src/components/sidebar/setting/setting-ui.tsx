@@ -74,17 +74,11 @@ function SettingUI({ open, onClose }: SettingUIProps): JSX.Element {
         <Tabs.Content value="asr" {...settingStyles.settingUI.tabs.content}>
           <ASR onSave={handleSaveCallback} onCancel={handleCancelCallback} />
         </Tabs.Content>
-        <Tabs.Content value="tts" {...settingStyles.settingUI.tabs.content}>
-          <TTS />
-        </Tabs.Content>
         <Tabs.Content value="agent" {...settingStyles.settingUI.tabs.content}>
           <Agent
             onSave={handleSaveCallback}
             onCancel={handleCancelCallback}
           />
-        </Tabs.Content>
-        <Tabs.Content value="about" {...settingStyles.settingUI.tabs.content}>
-          <About />
         </Tabs.Content>
       </Tabs.ContentGroup>
     ),
@@ -137,22 +131,10 @@ function SettingUI({ open, onClose }: SettingUIProps): JSX.Element {
                 语音识别
               </Tabs.Trigger>
               <Tabs.Trigger
-                value="tts"
-                {...settingStyles.settingUI.tabs.trigger}
-              >
-                语音合成
-              </Tabs.Trigger>
-              <Tabs.Trigger
                 value="agent"
                 {...settingStyles.settingUI.tabs.trigger}
               >
                 智能体
-              </Tabs.Trigger>
-              <Tabs.Trigger
-                value="about"
-                {...settingStyles.settingUI.tabs.trigger}
-              >
-                关于
               </Tabs.Trigger>
             </Tabs.List>
 

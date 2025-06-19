@@ -30,7 +30,7 @@ export const useInterrupt = () => {
       console.error('Live2D model is not initialized');
     }
     clearResponse();
-    if (subtitleText === 'Thinking...') {
+    if (subtitleText == '思考...') {
       setSubtitleText('');
     }
     console.log('Interrupted!');
