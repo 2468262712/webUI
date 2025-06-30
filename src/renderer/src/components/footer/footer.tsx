@@ -61,14 +61,14 @@ const ActionButtons = memo(({ micOn, onMicToggle, onInterrupt }: ActionButtonsPr
     >
       {micOn ? <BsMicFill /> : <BsMicMuteFill />}
     </IconButton>
-    <IconButton
+    {/* <IconButton
       aria-label="Raise hand"
       bg="yellow.500"
       {...footerStyles.footer.actionButton}
       onClick={onInterrupt}
     >
       <IoHandRightSharp size="24" />
-    </IconButton>
+    </IconButton> */}
   </HStack>
 ));
 

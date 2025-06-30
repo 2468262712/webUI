@@ -26,11 +26,14 @@ import { ScreenCaptureProvider } from './context/screen-capture-context';
 import { GroupProvider } from './context/group-context';
 // eslint-disable-next-line import/no-extraneous-dependencies, import/newline-after-import
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
+
 function App(): JSX.Element {
   const [showSidebar, setShowSidebar] = useState(true);
   const [isFooterCollapsed, setIsFooterCollapsed] = useState(false);
   const [mode, setMode] = useState('window');
   const isElectron = window.api !== undefined;
+
+
   useEffect(() => {
     if (isElectron) {
       window.electron.ipcRenderer.on('pre-mode-changed', (_event, newMode) => {
@@ -67,6 +70,7 @@ function App(): JSX.Element {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+ 
   return (
     <ChakraProvider value={defaultSystem}>
       <Live2DModelProvider>

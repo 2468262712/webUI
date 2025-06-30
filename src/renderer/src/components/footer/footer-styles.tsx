@@ -41,9 +41,9 @@ export const footerStyles: {
     },
     actionButton: {
       borderRadius: '12px',
-      width: '50px',
-      height: '50px',
-      minW: '50px',
+      width: '100px',
+      height: '30px',
+      minW: '110px',
     },
     input: {
       bg: 'gray.700',

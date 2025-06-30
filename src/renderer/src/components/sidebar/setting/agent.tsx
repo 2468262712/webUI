@@ -35,11 +35,11 @@ function Agent({ onSave, onCancel }: AgentProps): JSX.Element {
         />
       )}
 
-      <SwitchField
+      {/* <SwitchField
         label="允许通过举手按钮触发AI说话"
         checked={settings.allowButtonTrigger}
         onChange={handleAllowButtonTriggerChange}
-      />
+      /> */}
     </Stack>
   );
 }

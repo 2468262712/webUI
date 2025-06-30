@@ -19,6 +19,8 @@ import { AiState, useAiState, AiStateEnum } from "@/context/ai-state-context";
 import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { useGroup } from '@/context/group-context';
 import { useInterrupt } from '@/hooks/utils/use-interrupt';
+import { useFooter } from '@/hooks/footer/use-footer';
+import { useMicToggle } from '@/hooks/utils/use-mic-toggle';
 
 function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const [wsState, setWsState] = useState<string>('CLOSED');
@@ -36,10 +38,119 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const { startMic, stopMic, autoStartMicOnConvEnd } = useVAD();
   const autoStartMicOnConvEndRef = useRef(autoStartMicOnConvEnd);
   const { interrupt } = useInterrupt();
+  const { handleMicToggle, micOn } = useMicToggle();
+
+  const WAKE_WORD = '你好，小薇';
 
   useEffect(() => {
     autoStartMicOnConvEndRef.current = autoStartMicOnConvEnd;
   }, [autoStartMicOnConvEnd]);
+
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.error("此浏览器不支持语音识别。");
+      toaster.create({
+        title: '此浏览器不支持语音识别。',
+        type: 'error',
+        duration: 3000,
+      });
+      return () => {};
+    }
+
+    if (micOn) {
+      return () => {};
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.continuous = true;
+    recognition.interimResults = false;
+
+    const recognitionActiveRef = { current: false };
+    let recognitionStopped = false;
+
+    recognition.onstart = () => {
+      recognitionActiveRef.current = true;
+      recognitionStopped = false;
+      console.log('后台语音识别服务已启动。');
+    };
+
+    recognition.onresult = (event) => {
+      const last = event.results.length - 1;
+      const transcript = event.results[last][0].transcript.trim();
+      console.log('后台识别到:', transcript);
+
+      if (transcript.includes(WAKE_WORD) && !micOn) {
+        console.log('检测到唤醒词，开启麦克风!');
+        handleMicToggle();
+      }
+    };
+
+    recognition.onerror = (event) => {
+      console.error('后台语音识别错误:', event.error);
+      if (event.error === 'not-allowed') {
+        toaster.create({
+          title: '麦克风权限被拒绝，语音唤醒功能无法使用。',
+          type: 'error',
+          duration: 5000,
+        });
+      }
+      if (!recognitionStopped && !micOn) {
+        setTimeout(() => {
+          if (!recognitionActiveRef.current && !recognitionStopped) {
+            try {
+              recognition.start();
+              console.log('后台语音识别服务因错误已重启。');
+            } catch (e) {
+              if ((e as any).name === 'InvalidStateError') {
+                // 已经在运行，无需重启
+              } else {
+                console.error('重启后台语音识别失败:', e);
+              }
+            }
+          }
+        }, 1000);
+      }
+    };
+
+    recognition.onend = () => {
+      recognitionActiveRef.current = false;
+      if (!recognitionStopped && !micOn) {
+        console.log('后台语音识别服务已停止，尝试重启...');
+        setTimeout(() => {
+          if (!recognitionActiveRef.current && !recognitionStopped) {
+            try {
+              recognition.start();
+              console.log('后台语音识别服务已重启。');
+            } catch (e) {
+              if ((e as any).name === 'InvalidStateError') {
+                // 已经在运行，无需重启
+              } else {
+                console.error('重启后台语音识别失败:', e);
+              }
+            }
+          }
+        }, 1000);
+      }
+    };
+
+    try {
+      recognition.start();
+      console.log('后台语音识别服务已启动，正在监听唤醒词...');
+    } catch (e) {
+      console.error("启动后台语音识别失败: ", e);
+    }
+    
+    return () => {
+      recognitionStopped = true;
+      try {
+        recognition.stop();
+      } catch (e) {
+        // 忽略 stop 时的异常
+      }
+    };
+  }, [micOn, handleMicToggle]);
 
   useEffect(() => {
     if (pendingModelInfo) {
@@ -71,7 +182,6 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         audioTaskQueue.addTask(() => new Promise<void>((resolve) => {
           setAiState((currentState: AiState) => {
             if (currentState === AiStateEnum.THINKING_SPEAKING) {
-              // Auto start mic if enabled
               if (autoStartMicOnConvEndRef.current) {
                 startMic();
               }
@@ -89,6 +199,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
 
   const handleWebSocketMessage = useCallback((message: MessageEvent) => {
     console.log('Received message from server:', message);
+    const END_WORD = '结束对话';
+
     switch (message.type) {
       case 'control':
         if (message.text) {
@@ -108,8 +220,6 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           setSelfUid(message.client_uid);
         }
         setPendingModelInfo(message.model_info);
-        // setModelInfo(message.model_info);
-        // We don't know when the confRef in live2d-config-context will be updated, so we set a delay here for convenience
         if (message.model_info && !message.model_info.url.startsWith("http")) {
           const modelUrl = baseUrl + message.model_info.url;
           // eslint-disable-next-line no-param-reassign
@@ -137,8 +247,6 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           type: 'success',
           duration: 2000,
         });
-
-        // setModelInfo(undefined);
 
         wsService.sendMessage({ type: 'fetch-history-list' });
         wsService.sendMessage({ type: 'create-new-history' });
@@ -176,7 +284,6 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'new-history-created':
         setAiState(AiStateEnum.IDLE);
         setSubtitleText('新对话');
-        // No need to open mic here
         if (message.history_uid) {
           setCurrentHistoryUid(message.history_uid);
           setMessages([]);
@@ -213,6 +320,10 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'user-input-transcription':
         console.log('user-input-transcription: ', message.text);
         if (message.text) {
+          if (message.text.includes(END_WORD) && micOn) {
+            console.log('检测到结束词，正在关闭麦克风...');
+            handleMicToggle();
+          }
           appendHumanMessage(message.text);
         }
         break;
@@ -256,13 +367,37 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         setForceNewMessage(true);
         break;
       case 'interrupt-signal':
-        // Handle forwarded interrupt
-        interrupt(false); // do not send interrupt signal to server
+        interrupt(false);
         break;
       default:
-        console.warn('Unknown message type:', message.type);
+        console.warn(`Unknown message type: ${message.type}`);
     }
-  }, [aiState, addAudioTask, appendHumanMessage, baseUrl, bgUrlContext, setAiState, setConfName, setConfUid, setConfigFiles, setCurrentHistoryUid, setHistoryList, setMessages, setModelInfo, setSubtitleText, startMic, stopMic, setSelfUid, setGroupMembers, setIsOwner, backendSynthComplete, setBackendSynthComplete, clearResponse]);
+  }, [
+    handleControlMessage,
+    setAiState,
+    setConfName,
+    setConfUid,
+    setSelfUid,
+    setPendingModelInfo,
+    baseUrl,
+    setSubtitleText,
+    setConfigFiles,
+    bgUrlContext,
+    addAudioTask,
+    aiState,
+    setMessages,
+    toaster,
+    setCurrentHistoryUid,
+    setHistoryList,
+    appendHumanMessage,
+    setGroupMembers,
+    setIsOwner,
+    setBackendSynthComplete,
+    audioTaskQueue,
+    setForceNewMessage,
+    micOn,
+    handleMicToggle,
+  ]);
 
   useEffect(() => {
     wsService.connect(wsUrl);
