@@ -39,12 +39,49 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const autoStartMicOnConvEndRef = useRef(autoStartMicOnConvEnd);
   const { interrupt } = useInterrupt();
   const { handleMicToggle, micOn } = useMicToggle();
-
+  const recognitionRef = useRef<any>(null);
+  const recognitionActiveRef = useRef(false);
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const isStartingRef = useRef(false);
   const WAKE_WORD = '你好，小薇';
+  const END_WORDS = ['结束对话', '关闭对话', '停止对话', '请结束对话'];
 
   useEffect(() => {
     autoStartMicOnConvEndRef.current = autoStartMicOnConvEnd;
   }, [autoStartMicOnConvEnd]);
+
+  // 封装 start/stop 逻辑，防止重复 start
+  const startRecognition = useCallback(() => {
+    if (
+      recognitionRef.current &&
+      !recognitionActiveRef.current &&
+      !isStartingRef.current
+    ) {
+      try {
+        isStartingRef.current = true;
+        recognitionRef.current.start();
+        recognitionActiveRef.current = true;
+        console.log('后台语音识别服务已启动，正在监听唤醒词...');
+      } catch (e) {
+        if ((e as any).name === 'InvalidStateError') {
+          // 已经在运行，无需重启
+        } else {
+          console.error('启动后台语音识别失败: ', e);
+        }
+      } finally {
+        isStartingRef.current = false;
+      }
+    }
+  }, []);
+
+  const stopRecognition = useCallback(() => {
+    if (recognitionRef.current && recognitionActiveRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
+      recognitionActiveRef.current = false;
+    }
+  }, []);
 
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -55,102 +92,74 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         type: 'error',
         duration: 3000,
       });
-      return () => {};
+      return;
     }
 
-    if (micOn) {
-      return () => {};
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
     }
-
-    const recognition = new SpeechRecognition();
-    recognition.lang = 'zh-CN';
-    recognition.continuous = true;
-    recognition.interimResults = false;
-
-    const recognitionActiveRef = { current: false };
-    let recognitionStopped = false;
-
-    recognition.onstart = () => {
-      recognitionActiveRef.current = true;
-      recognitionStopped = false;
-      console.log('后台语音识别服务已启动。');
-    };
-
-    recognition.onresult = (event) => {
-      const last = event.results.length - 1;
-      const transcript = event.results[last][0].transcript.trim();
-      console.log('后台识别到:', transcript);
-
-      if (transcript.includes(WAKE_WORD) && !micOn) {
-        console.log('检测到唤醒词，开启麦克风!');
-        handleMicToggle();
+    debounceTimerRef.current = setTimeout(() => {
+      if (micOn) {
+        stopRecognition();
+        return;
       }
-    };
 
-    recognition.onerror = (event) => {
-      console.error('后台语音识别错误:', event.error);
-      if (event.error === 'not-allowed') {
-        toaster.create({
-          title: '麦克风权限被拒绝，语音唤醒功能无法使用。',
-          type: 'error',
-          duration: 5000,
-        });
-      }
-      if (!recognitionStopped && !micOn) {
-        setTimeout(() => {
-          if (!recognitionActiveRef.current && !recognitionStopped) {
-            try {
-              recognition.start();
+      if (!recognitionRef.current) {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'zh-CN';
+        recognition.continuous = true;
+        recognition.interimResults = false;
+
+        recognition.onstart = () => {
+          recognitionActiveRef.current = true;
+          console.log('后台语音识别服务已启动。');
+        };
+        recognition.onresult = (event: any) => {
+          const last = event.results.length - 1;
+          const transcript = event.results[last][0].transcript.trim();
+          console.log('后台识别到:', transcript);
+          if (transcript.includes(WAKE_WORD) && !micOn) {
+            console.log('检测到唤醒词，开启麦克风!');
+            handleMicToggle();
+          }
+        };
+        recognition.onerror = (event: any) => {
+          console.error('后台语音识别错误:', event.error);
+          if (event.error === 'not-allowed') {
+            toaster.create({
+              title: '麦克风权限被拒绝，语音唤醒功能无法使用。',
+              type: 'error',
+              duration: 5000,
+            });
+          }
+          if (!micOn) {
+            setTimeout(() => {
+              startRecognition();
               console.log('后台语音识别服务因错误已重启。');
-            } catch (e) {
-              if ((e as any).name === 'InvalidStateError') {
-                // 已经在运行，无需重启
-              } else {
-                console.error('重启后台语音识别失败:', e);
-              }
-            }
+            }, 1000);
           }
-        }, 1000);
-      }
-    };
-
-    recognition.onend = () => {
-      recognitionActiveRef.current = false;
-      if (!recognitionStopped && !micOn) {
-        console.log('后台语音识别服务已停止，尝试重启...');
-        setTimeout(() => {
-          if (!recognitionActiveRef.current && !recognitionStopped) {
-            try {
-              recognition.start();
+        };
+        recognition.onend = () => {
+          recognitionActiveRef.current = false;
+          if (!micOn) {
+            setTimeout(() => {
+              startRecognition();
               console.log('后台语音识别服务已重启。');
-            } catch (e) {
-              if ((e as any).name === 'InvalidStateError') {
-                // 已经在运行，无需重启
-              } else {
-                console.error('重启后台语音识别失败:', e);
-              }
-            }
+            }, 1000);
           }
-        }, 1000);
+        };
+        recognitionRef.current = recognition;
       }
-    };
+      startRecognition();
+    }, 200); // 200ms 防抖
 
-    try {
-      recognition.start();
-      console.log('后台语音识别服务已启动，正在监听唤醒词...');
-    } catch (e) {
-      console.error("启动后台语音识别失败: ", e);
-    }
-    
     return () => {
-      recognitionStopped = true;
-      try {
-        recognition.stop();
-      } catch (e) {
-        // 忽略 stop 时的异常
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current);
       }
+      stopRecognition();
     };
-  }, [micOn, handleMicToggle]);
+  }, [micOn, handleMicToggle, startRecognition, stopRecognition]);
 
   useEffect(() => {
     if (pendingModelInfo) {
@@ -199,7 +208,6 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
 
   const handleWebSocketMessage = useCallback((message: MessageEvent) => {
     console.log('Received message from server:', message);
-    const END_WORD = '结束对话';
 
     switch (message.type) {
       case 'control':
@@ -319,8 +327,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         break;
       case 'user-input-transcription':
         console.log('user-input-transcription: ', message.text);
-        if (message.text) {
-          if (message.text.includes(END_WORD) && micOn) {
+        if (typeof message.text === 'string' && message.text.length > 0) {
+          if (END_WORDS.some(word => message.text!.includes(word)) && micOn) {
             console.log('检测到结束词，正在关闭麦克风...');
             handleMicToggle();
           }

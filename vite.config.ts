@@ -36,6 +36,7 @@ const createConfig = async (outDir: string) => ({
   base: './',
   server: {
     port: 3000,
+    allowedHosts: ['gzns.xyz'],
   },
   build: {
     outDir: path.join(__dirname, outDir),
