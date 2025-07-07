@@ -43,7 +43,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const recognitionActiveRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isStartingRef = useRef(false);
-  const WAKE_WORD = '你好，小薇';
+  const WAKE_WORDS = ['你好，小新', '小新你好', '小新，开始对话', '小心小心','你好小心','你好，小心','小心，开始对话'];
   const END_WORDS = ['结束对话', '关闭对话', '停止对话', '请结束对话'];
 
   useEffect(() => {
@@ -118,7 +118,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           const last = event.results.length - 1;
           const transcript = event.results[last][0].transcript.trim();
           console.log('后台识别到:', transcript);
-          if (transcript.includes(WAKE_WORD) && !micOn) {
+          if (WAKE_WORDS.some(word => transcript.includes(word)) && !micOn) {
             console.log('检测到唤醒词，开启麦克风!');
             handleMicToggle();
           }
