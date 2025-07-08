@@ -1,6 +1,5 @@
 /* eslint-disable no-sparse-arrays */
 /* eslint-disable react-hooks/exhaustive-deps */
-// eslint-disable-next-line object-curly-newline
 import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { wsService, MessageEvent } from '@/services/websocket-service';
 import {
@@ -19,7 +18,6 @@ import { AiState, useAiState, AiStateEnum } from "@/context/ai-state-context";
 import { useLocalStorage } from '@/hooks/utils/use-local-storage';
 import { useGroup } from '@/context/group-context';
 import { useInterrupt } from '@/hooks/utils/use-interrupt';
-import { useFooter } from '@/hooks/footer/use-footer';
 import { useMicToggle } from '@/hooks/utils/use-mic-toggle';
 
 function WebSocketHandler({ children }: { children: React.ReactNode }) {
@@ -43,8 +41,11 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
   const recognitionActiveRef = useRef(false);
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null);
   const isStartingRef = useRef(false);
-  const WAKE_WORDS = ['你好，小新', '小新你好', '小新，开始对话', '小心小心','你好小心','你好，小心','小心，开始对话'];
+  const WAKE_WORDS = ['你好，小薇', '小薇你好', '开始对话', '唤醒小薇'];
   const END_WORDS = ['结束对话', '关闭对话', '停止对话', '请结束对话'];
+  const WHISPER_API_URL = "http://192.168.101.46:7123/v1/audio/transcriptions";
+  const WHISPER_MODEL = "whisper-large-v3-turbo";
+  const RECORD_SECONDS = 3;
 
   useEffect(() => {
     autoStartMicOnConvEndRef.current = autoStartMicOnConvEnd;
@@ -118,7 +119,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
           const last = event.results.length - 1;
           const transcript = event.results[last][0].transcript.trim();
           console.log('后台识别到:', transcript);
-          if (WAKE_WORDS.some(word => transcript.includes(word)) && !micOn) {
+          if (transcript.includes(WAKE_WORDS[0]) && !micOn) {
             console.log('检测到唤醒词，开启麦克风!');
             handleMicToggle();
           }
@@ -230,10 +231,8 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
         setPendingModelInfo(message.model_info);
         if (message.model_info && !message.model_info.url.startsWith("http")) {
           const modelUrl = baseUrl + message.model_info.url;
-          // eslint-disable-next-line no-param-reassign
           message.model_info.url = modelUrl;
         }
-
         setAiState(AiStateEnum.IDLE);
         break;
       case 'full-text':
@@ -249,13 +248,11 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'config-switched':
         setAiState(AiStateEnum.IDLE);
         setSubtitleText('New Character Loaded');
-
         toaster.create({
           title: 'Character switched',
           type: 'success',
           duration: 2000,
         });
-
         wsService.sendMessage({ type: 'fetch-history-list' });
         wsService.sendMessage({ type: 'create-new-history' });
         break;
@@ -328,7 +325,7 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
       case 'user-input-transcription':
         console.log('user-input-transcription: ', message.text);
         if (typeof message.text === 'string' && message.text.length > 0) {
-          if (END_WORDS.some(word => message.text!.includes(word)) && micOn) {
+          if (containsEndWord(message.text) && micOn) {
             console.log('检测到结束词，正在关闭麦克风...');
             handleMicToggle();
           }
@@ -429,6 +426,162 @@ function WebSocketHandler({ children }: { children: React.ReactNode }) {
     baseUrl,
     setBaseUrl,
   }), [wsState, wsUrl, baseUrl]);
+
+  function containsWakeWord(text: string) {
+    return WAKE_WORDS.some(word => text.includes(word));
+  }
+
+  function containsEndWord(text: string) {
+    return END_WORDS.some(word => text.includes(word));
+  }
+
+  // 录制音频
+  function recordAudio(seconds: number): Promise<Blob> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        const chunks: BlobPart[] = [];
+
+        mediaRecorder.ondataavailable = (e) => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          stream.getTracks().forEach(track => track.stop());
+          resolve(new Blob(chunks, { type: 'audio/webm' }));
+        };
+        mediaRecorder.onerror = (err) => reject(err);
+
+        mediaRecorder.start();
+        setTimeout(() => mediaRecorder.stop(), seconds * 1000);
+      } catch (err) {
+        reject(err);
+      }
+    });
+  }
+
+  // 将 WebM 转换为 WAV
+  async function convertToWav(audioBlob: Blob): Promise<Blob> {
+    const arrayBuffer = await audioBlob.arrayBuffer();
+    const audioContext = new AudioContext();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+
+    // 创建 WAV 文件
+    const wavBuffer = audioBufferToWav(audioBuffer);
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+  }
+
+  // 将 AudioBuffer 转换为 WAV 格式
+  function audioBufferToWav(audioBuffer: AudioBuffer): ArrayBuffer {
+    const numChannels = audioBuffer.numberOfChannels;
+    const sampleRate = audioBuffer.sampleRate;
+    const length = audioBuffer.length * numChannels * 2 + 44; // 16-bit PCM
+    const buffer = new ArrayBuffer(length);
+    const view = new DataView(buffer);
+
+    // 写入 WAV 头部
+    const writeString = (view: DataView, offset: number, str: string) => {
+      for (let i = 0; i < str.length; i++) {
+        view.setUint8(offset + i, str.charCodeAt(i));
+      }
+    };
+
+    // WAV 头部
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + audioBuffer.length * numChannels * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
+    view.setUint16(20, 1, true); // AudioFormat (1 for PCM)
+    view.setUint16(22, numChannels, true); // NumChannels
+    view.setUint32(24, sampleRate, true); // SampleRate
+    view.setUint32(28, sampleRate * numChannels * 2, true); // ByteRate
+    view.setUint16(32, numChannels * 2, true); // BlockAlign
+    view.setUint16(34, 16, true); // BitsPerSample
+    writeString(view, 36, 'data');
+    view.setUint32(40, audioBuffer.length * numChannels * 2, true);
+
+    // 写入 PCM 数据
+    let offset = 44;
+    for (let i = 0; i < audioBuffer.length; i++) {
+      for (let channel = 0; channel < numChannels; channel++) {
+        const sample = audioBuffer.getChannelData(channel)[i];
+        const value = Math.max(-1, Math.min(1, sample)) * 0x7FFF; // 转换为 16-bit PCM
+        view.setInt16(offset, value, true);
+        offset += 2;
+      }
+    }
+
+    return buffer;
+  }
+
+  // 调用 Whisper API 进行转录
+  async function transcribeWithWhisper(audioBlob: Blob): Promise<string> {
+    try {
+      // 将 WebM 转换为 WAV
+      const wavBlob = await convertToWav(audioBlob);
+
+      const formData = new FormData();
+      formData.append('file', wavBlob, 'audio.wav'); // 使用 WAV 格式
+      formData.append('model', WHISPER_MODEL);
+
+      const response = await fetch(WHISPER_API_URL, {
+        method: 'POST',
+        body: formData,
+        headers: { 'Accept': 'application/json' },
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Whisper API 错误:', response.status, errorText);
+        throw new Error(`Whisper API 请求失败: ${response.status} - ${errorText}`);
+      }
+
+      const result = await response.json();
+      return result.text || '';
+    } catch (err) {
+      console.error('转录错误:', err);
+      throw err;
+    }
+  }
+
+  let isBackgroundListening = false;
+  function startBackgroundWakeWordListening(onWake: () => void) {
+    isBackgroundListening = true;
+    (async function loop() {
+      while (isBackgroundListening) {
+        try {
+          const audioBlob = await recordAudio(RECORD_SECONDS);
+          const wavBlob = await convertToWav(audioBlob); // 转换为 WAV
+          const text = await transcribeWithWhisper(wavBlob);
+          console.log('后台识别到:', text);
+          if (containsWakeWord(text)) {
+            isBackgroundListening = false;
+            onWake();
+            break;
+          }
+        } catch (err) {
+          console.error('后台监听录音或识别出错:', err);
+          await new Promise(res => setTimeout(res, 1000));
+        }
+        await new Promise(res => setTimeout(res, 500));
+      }
+    })();
+  }
+
+  function stopBackgroundWakeWordListening() {
+    isBackgroundListening = false;
+  }
+
+  useEffect(() => {
+    if (!micOn) {
+      startBackgroundWakeWordListening(() => {
+        // 检测到唤醒词，自动开麦
+        handleMicToggle();
+      });
+    } else {
+      stopBackgroundWakeWordListening();
+    }
+    return () => stopBackgroundWakeWordListening();
+  }, [micOn, handleMicToggle]);
 
   return (
     <WebSocketContext.Provider value={webSocketContextValue}>
