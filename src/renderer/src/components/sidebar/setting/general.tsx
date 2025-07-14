@@ -73,13 +73,13 @@ function General({ onSave, onCancel }: GeneralProps): JSX.Element {
 
   return (
     <Stack {...settingStyles.common.container}>
-      <SelectField
+      {/* <SelectField
         label="语言"
         value={settings.language}
         onChange={(value) => handleSettingChange('language', value)}
         collection={collections.languages}
         placeholder="选择语言"
-      />
+      /> */}
 
       <SwitchField
         label="使用摄像头背景"

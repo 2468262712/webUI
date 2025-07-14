@@ -63,7 +63,7 @@ export const canvasStyles = {
       top: '20px',
       left: '20px',
       zIndex: 2,
-      padding: '8px 16px',
+      // padding: '8px 10px',
       borderRadius: '20px',
       fontSize: '14px',
       fontWeight: 'medium',

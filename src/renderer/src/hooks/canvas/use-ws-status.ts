@@ -22,7 +22,7 @@ export const useWSStatus = () => {
       case 'OPEN':
         return {
           color: 'green.500',
-          text: ' ',
+          text: '',
           isDisconnected: false,
           handleClick,
         };

@@ -28,8 +28,8 @@ import { GroupProvider } from './context/group-context';
 import "@chatscope/chat-ui-kit-styles/dist/default/styles.min.css";
 
 function App(): JSX.Element {
-  const [showSidebar, setShowSidebar] = useState(true);
-  const [isFooterCollapsed, setIsFooterCollapsed] = useState(false);
+  const [showSidebar, setShowSidebar] = useState(false);
+  const [isFooterCollapsed, setIsFooterCollapsed] = useState(true);
   const [mode, setMode] = useState('window');
   const isElectron = window.api !== undefined;
 

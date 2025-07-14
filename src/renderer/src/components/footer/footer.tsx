@@ -120,13 +120,13 @@ function Footer({ isCollapsed = false, onToggle }: FooterProps): JSX.Element {
         <HStack width="100%" gap={4}>
           <Box>
             <Box mb="1.5">
-              <AIStateIndicator />
+              {/* <AIStateIndicator /> */}
             </Box>
-            <ActionButtons
+            {/* <ActionButtons
               micOn={micOn}
               onMicToggle={handleMicToggle}
               onInterrupt={handleInterrupt}
-            />
+            /> */}
           </Box>
 
           <MessageInput

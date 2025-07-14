@@ -41,9 +41,9 @@ export const footerStyles: {
     },
     actionButton: {
       borderRadius: '12px',
-      width: '100px',
-      height: '30px',
-      minW: '110px',
+      // width: '100px',
+      // height: '30px',
+      // minW: '10px',
     },
     input: {
       bg: 'gray.700',
@@ -87,8 +87,8 @@ export const footerStyles: {
     container: {
       bg: '#7C5CFF',
       color: 'white',
-      width: '110px',
-      height: '30px',
+      // width: '110px',
+      height: '40px',
       borderRadius: '12px',
       display: 'flex',
       alignItems: 'center',

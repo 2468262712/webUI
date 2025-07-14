@@ -130,12 +130,12 @@ function SettingUI({ open, onClose }: SettingUIProps): JSX.Element {
               >
                 语音识别
               </Tabs.Trigger>
-              <Tabs.Trigger
+              {/* <Tabs.Trigger
                 value="agent"
                 {...settingStyles.settingUI.tabs.trigger}
               >
                 智能体
-              </Tabs.Trigger>
+              </Tabs.Trigger> */}
             </Tabs.List>
 
             {tabsContent}
